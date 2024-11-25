@@ -49,3 +49,37 @@ def crop_to_nonzero(data, seg=None, nonzero_label=-1):
     return data, seg, bbox
 
 
+def crop_to_liver(data, seg, liver_label=1):
+    """
+    Crop the CT scan data, while preserving the liver region based on the segmentation mask.
+
+    :param data: The input image data, shape (C, X, Y, Z) or (C, X, Y)
+    :param seg: The segmentation mask, shape (C, X, Y, Z) or (C, X, Y)
+    :param liver_label: The label corresponding to the liver in the segmentation mask
+    :return: Cropped data, cropped segmentation, and bounding box
+    """
+    #to-do: what if seg is None
+    assert seg is not None, "Segmentation mask (seg) is required for liver-based cropping."
+    assert data.shape[1:] == seg.shape[1:], "Data and segmentation mask must have matching spatial dimensions."
+
+    liver_mask = seg == liver_label
+
+    bbox = get_bbox_from_mask(liver_mask)
+
+    slicer = bounding_box_to_slice(bbox)
+    
+    if data.ndim == 4:  # If data is (C, X, Y, Z)
+        cropped_data = data[(slice(None),) + slicer]
+    elif data.ndim == 3:  # If data is (X, Y, Z)
+        cropped_data = data[slicer]
+    else:
+        raise ValueError("Data must be 3D or 4D. Got shape: {}".format(data.shape))
+    
+    if data.ndim == 4:  # If data is (C, X, Y, Z)
+        cropped_seg = seg[(slice(None),) + slicer]
+    elif data.ndim == 3:  # If data is (X, Y, Z)
+        cropped_seg = seg[slicer]
+    else:
+        raise ValueError("Data must be 3D or 4D. Got shape: {}".format(data.shape))
+    
+    return cropped_data, cropped_seg, bbox
