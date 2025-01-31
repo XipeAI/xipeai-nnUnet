@@ -42,30 +42,47 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         segmentation = segmentation.cpu().numpy()
 
     # put segmentation in bbox (revert cropping)
-    segmentation_reverted_cropping = np.zeros(properties_dict['shape_before_cropping'],
+    segmentation_reverted_cropping = np.zeros(properties_dict['shape_before_nonzero_cropping'],
                                               dtype=np.uint8 if len(label_manager.foreground_labels) < 255 else np.uint16)
-    slicer = bounding_box_to_slice(properties_dict['bbox_used_for_cropping'])
+    slicer = bounding_box_to_slice(properties_dict['nonzero_bbox'])
     segmentation_reverted_cropping[slicer] = segmentation
     del segmentation
+    
+    # revert liver cropping
+    if 'shape_before_liver_cropping' in properties_dict:
+        segmentation_reverted_liver_cropping = np.zeros(properties_dict['shape_before_liver_cropping'],
+                                                  dtype=segmentation_reverted_cropping.dtype)
+        liver_slicer = bounding_box_to_slice(properties_dict['liver_bbox'])
+        segmentation_reverted_liver_cropping[liver_slicer] = segmentation_reverted_cropping
+        del segmentation_reverted_cropping
+    else:
+        segmentation_reverted_liver_cropping = segmentation_reverted_cropping
 
     # revert transpose
-    segmentation_reverted_cropping = segmentation_reverted_cropping.transpose(plans_manager.transpose_backward)
+    segmentation_reverted_liver_cropping = segmentation_reverted_liver_cropping.transpose(plans_manager.transpose_backward)
     if return_probabilities:
         # revert cropping
         predicted_probabilities = label_manager.revert_cropping_on_probabilities(predicted_probabilities,
                                                                                  properties_dict[
-                                                                                     'bbox_used_for_cropping'],
+                                                                                     'nonzero_bbox'],
                                                                                  properties_dict[
-                                                                                     'shape_before_cropping'])
+                                                                                     'shape_before_nonzero_cropping'])
+        if 'shape_before_liver_cropping' in properties_dict:
+            predicted_probabilities = label_manager.revert_cropping_on_probabilities(predicted_probabilities,
+                                                                                    properties_dict[
+                                                                                        'liver_bbox'],
+                                                                                    properties_dict[
+                                                                                        'shape_before_liver_cropping'])
+
         predicted_probabilities = predicted_probabilities.cpu().numpy()
         # revert transpose
         predicted_probabilities = predicted_probabilities.transpose([0] + [i + 1 for i in
                                                                            plans_manager.transpose_backward])
         torch.set_num_threads(old_threads)
-        return segmentation_reverted_cropping, predicted_probabilities
+        return segmentation_reverted_liver_cropping, predicted_probabilities
     else:
         torch.set_num_threads(old_threads)
-        return segmentation_reverted_cropping
+        return segmentation_reverted_liver_cropping
 
 
 def export_prediction_from_logits(predicted_array_or_file: Union[np.ndarray, torch.Tensor], properties_dict: dict,

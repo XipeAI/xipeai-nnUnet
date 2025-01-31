@@ -20,7 +20,7 @@ import nnunetv2
 import numpy as np
 from batchgenerators.utilities.file_and_folder_operations import *
 from nnunetv2.paths import nnUNet_preprocessed, nnUNet_raw
-from nnunetv2.preprocessing.cropping.cropping import crop_to_nonzero
+from nnunetv2.preprocessing.cropping.cropping import crop_to_nonzero, crop_to_liver
 from nnunetv2.preprocessing.resampling.default_resampling import compute_new_shape
 from nnunetv2.utilities.dataset_name_id_conversion import maybe_convert_to_dataset_name
 from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
@@ -54,12 +54,20 @@ class DefaultPreprocessor(object):
             seg = seg.transpose([0, *[i + 1 for i in plans_manager.transpose_forward]])
         original_spacing = [properties['spacing'][i] for i in plans_manager.transpose_forward]
 
-        # crop, remember to store size before cropping!
-        shape_before_cropping = data.shape[1:]
-        properties['shape_before_cropping'] = shape_before_cropping
+        # crop using liver mask
+        if has_seg:
+            liver_label = dataset_json["labels"]["liver"]  # get liver label from dataset.json
+            shape_before_liver_cropping = data.shape[1:]
+            properties['shape_before_liver_cropping'] = shape_before_liver_cropping
+            data, seg, liver_bbox = crop_to_liver(data, seg, liver_label=liver_label)
+            properties['liver_bbox'] = liver_bbox  # store liver-specific cropping info
+    
+        # crop to nonzero areas, remember to store size before cropping!
+        shape_before_nonzero_cropping = data.shape[1:]
+        properties['shape_before_nonzero_cropping'] = shape_before_nonzero_cropping
         # this command will generate a segmentation. This is important because of the nonzero mask which we may need
-        data, seg, bbox = crop_to_nonzero(data, seg)
-        properties['bbox_used_for_cropping'] = bbox
+        data, seg, nonzero_bbox = crop_to_nonzero(data, seg)
+        properties['nonzero_bbox'] = nonzero_bbox  # Store nonzero-specific cropping info
         # print(data.shape, seg.shape)
         properties['shape_after_cropping_and_before_resampling'] = data.shape[1:]
 

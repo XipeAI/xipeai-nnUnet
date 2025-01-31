@@ -10,7 +10,7 @@ from tqdm import tqdm
 from nnunetv2.imageio.base_reader_writer import BaseReaderWriter
 from nnunetv2.imageio.reader_writer_registry import determine_reader_writer_from_dataset_json
 from nnunetv2.paths import nnUNet_raw, nnUNet_preprocessed
-from nnunetv2.preprocessing.cropping.cropping import crop_to_nonzero
+from nnunetv2.preprocessing.cropping.cropping import crop_to_nonzero, crop_to_liver
 from nnunetv2.utilities.dataset_name_id_conversion import maybe_convert_to_dataset_name
 from nnunetv2.utilities.utils import get_filenames_of_train_images_and_targets
 
@@ -80,7 +80,7 @@ class DatasetFingerprintExtractor(object):
         return intensities_per_channel, intensity_statistics_per_channel
 
     @staticmethod
-    def analyze_case(image_files: List[str], segmentation_file: str, reader_writer_class: Type[BaseReaderWriter],
+    def analyze_case(image_files: List[str], segmentation_file: str, liver_label: int, reader_writer_class: Type[BaseReaderWriter],
                      num_samples: int = 10000):
         rw = reader_writer_class()
         images, properties_images = rw.read_images(image_files)
@@ -90,7 +90,9 @@ class DatasetFingerprintExtractor(object):
         # Downside is that we need to do this twice (once here and once during preprocessing). Upside is that we don't
         # need to save the cropped data anymore. Given that cropping is not too expensive it makes sense to do it this
         # way. This is only possible because we are now using our new input/output interface.
-        data_cropped, seg_cropped, bbox = crop_to_nonzero(images, segmentation)
+        
+        data_cropped, seg_cropped, liver_bbox = crop_to_liver(images, segmentation, liver_label=liver_label)
+        data_cropped, seg_cropped, bbox = crop_to_nonzero(data_cropped, seg_cropped)
 
         foreground_intensities_per_channel, foreground_intensity_stats_per_channel = \
             DatasetFingerprintExtractor.collect_foreground_intensities(seg_cropped, data_cropped,
@@ -124,7 +126,7 @@ class DatasetFingerprintExtractor(object):
             with multiprocessing.get_context("spawn").Pool(self.num_processes) as p:
                 for k in self.dataset.keys():
                     r.append(p.starmap_async(DatasetFingerprintExtractor.analyze_case,
-                                             ((self.dataset[k]['images'], self.dataset[k]['label'], reader_writer_class,
+                                             ((self.dataset[k]['images'], self.dataset[k]['label'], self.dataset_json["labels"]["liver"], reader_writer_class,
                                                num_foreground_samples_per_case),)))
                 remaining = list(range(len(self.dataset)))
                 # p is pretty nifti. If we kill workers they just respawn but don't do any work.

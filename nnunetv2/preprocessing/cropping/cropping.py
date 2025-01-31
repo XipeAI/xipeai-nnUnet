@@ -58,28 +58,43 @@ def crop_to_liver(data, seg, liver_label=1):
     :param liver_label: The label corresponding to the liver in the segmentation mask
     :return: Cropped data, cropped segmentation, and bounding box
     """
+    margin = 10
+    
     #to-do: what if seg is None
     assert seg is not None, "Segmentation mask (seg) is required for liver-based cropping."
     assert data.shape[1:] == seg.shape[1:], "Data and segmentation mask must have matching spatial dimensions."
-
-    liver_mask = seg == liver_label
-
+    
+    if seg.ndim == 4:  # 4D case: (C, X, Y, Z)
+        liver_mask = seg[0] == liver_label
+    elif seg.ndim == 3:  # 3D case: (X, Y, Z)
+        liver_mask = seg == liver_label
+    else:
+        raise ValueError("Segmentation mask must be 3D or 4D. Got shape: {}".format(seg.shape))
+    
+    # get the original bounding box of the liver
     bbox = get_bbox_from_mask(liver_mask)
 
-    slicer = bounding_box_to_slice(bbox)
-    
+    # expand the bounding box by the margin, ensuring it stays within image bounds
+    expanded_bbox = []
+    for dim, (low, high) in enumerate(bbox):
+        expanded_low = max(low - margin, 0)
+        expanded_high = min(high + margin, seg.shape[-3 + dim])  # use the spatial dimensions only
+        expanded_bbox.append((expanded_low, expanded_high))
+
+    slicer = bounding_box_to_slice(expanded_bbox)
+        
     if data.ndim == 4:  # If data is (C, X, Y, Z)
         cropped_data = data[(slice(None),) + slicer]
-    elif data.ndim == 3:  # If data is (X, Y, Z)
+    elif data.ndim == 3:  # If data is (C, X, Y)
         cropped_data = data[slicer]
     else:
         raise ValueError("Data must be 3D or 4D. Got shape: {}".format(data.shape))
     
     if data.ndim == 4:  # If data is (C, X, Y, Z)
         cropped_seg = seg[(slice(None),) + slicer]
-    elif data.ndim == 3:  # If data is (X, Y, Z)
+    elif data.ndim == 3:  # If data is (C, X, Y)
         cropped_seg = seg[slicer]
     else:
         raise ValueError("Data must be 3D or 4D. Got shape: {}".format(data.shape))
-    
-    return cropped_data, cropped_seg, bbox
+
+    return cropped_data, cropped_seg, expanded_bbox
