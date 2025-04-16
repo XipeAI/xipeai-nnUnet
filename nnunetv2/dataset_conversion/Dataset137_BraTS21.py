@@ -51,18 +51,19 @@ def convert_folder_with_preds_back_to_BraTS_labeling_convention(input_folder: st
     reads all prediction files (nifti) in the input folder, converts the labels back to BraTS convention and saves the
     """
     maybe_mkdir_p(output_folder)
-    nii = subfiles(input_folder, suffix='.nii.gz', join=False)
+    nii = subfiles(input_folder, suffix='.nii', join=False)
     with multiprocessing.get_context("spawn").Pool(num_processes) as p:
         p.starmap(load_convert_labels_back_to_BraTS, zip(nii, [input_folder] * len(nii), [output_folder] * len(nii)))
 
 
 if __name__ == '__main__':
-    brats_data_dir = '/home/isensee/drives/E132-Rohdaten/BraTS_2021/training'
+    brats_data_dir = '/ceph/fabiwolf/xipe/data/BratsDatasetXipeAi_2/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData'
 
-    task_id = 137
-    task_name = "BraTS2021"
+    # task_id = 137
+    # task_name = "BraTS2021"
 
-    foldername = "Dataset%03.0d_%s" % (task_id, task_name)
+    # foldername = "Dataset%03.0d_%s" % (task_id, task_name)
+    foldername = "Dataset011_BraTS2020"
 
     # setting up nnU-Net folders
     out_base = join(nnUNet_raw, foldername)
@@ -71,16 +72,16 @@ if __name__ == '__main__':
     maybe_mkdir_p(imagestr)
     maybe_mkdir_p(labelstr)
 
-    case_ids = subdirs(brats_data_dir, prefix='BraTS', join=False)
+    case_ids = subdirs(brats_data_dir, prefix='BraTS20', join=False)
 
     for c in case_ids:
-        shutil.copy(join(brats_data_dir, c, c + "_t1.nii.gz"), join(imagestr, c + '_0000.nii.gz'))
-        shutil.copy(join(brats_data_dir, c, c + "_t1ce.nii.gz"), join(imagestr, c + '_0001.nii.gz'))
-        shutil.copy(join(brats_data_dir, c, c + "_t2.nii.gz"), join(imagestr, c + '_0002.nii.gz'))
-        shutil.copy(join(brats_data_dir, c, c + "_flair.nii.gz"), join(imagestr, c + '_0003.nii.gz'))
+        shutil.copy(join(brats_data_dir, c, c + "_t1.nii"), join(imagestr, c + '_0000.nii'))
+        shutil.copy(join(brats_data_dir, c, c + "_t1ce.nii"), join(imagestr, c + '_0001.nii'))
+        shutil.copy(join(brats_data_dir, c, c + "_t2.nii"), join(imagestr, c + '_0002.nii'))
+        shutil.copy(join(brats_data_dir, c, c + "_flair.nii"), join(imagestr, c + '_0003.nii'))
 
-        copy_BraTS_segmentation_and_convert_labels_to_nnUNet(join(brats_data_dir, c, c + "_seg.nii.gz"),
-                                                             join(labelstr, c + '.nii.gz'))
+        copy_BraTS_segmentation_and_convert_labels_to_nnUNet(join(brats_data_dir, c, c + "_seg.nii"),
+                                                             join(labelstr, c + '.nii'))
 
     generate_dataset_json(out_base,
                           channel_names={0: 'T1', 1: 'T1ce', 2: 'T2', 3: 'Flair'},
@@ -91,8 +92,9 @@ if __name__ == '__main__':
                               'enhancing tumor': (3, )
                           },
                           num_training_cases=len(case_ids),
-                          file_ending='.nii.gz',
+                          file_ending='.nii',
                           regions_class_order=(1, 2, 3),
-                          license='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
-                          reference='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
-                          dataset_release='1.0')
+                        #   license='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
+                        #   reference='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
+                        #   dataset_release='1.0'
+                        )
